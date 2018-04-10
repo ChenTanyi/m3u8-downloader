@@ -47,7 +47,6 @@ class M3U8Downloader:
 
         self._failed = []
         self._pool.map(self._download_ts, self._m3u8_content.segments)
-        gevent.joinall(self._pool)
 
         if self._failed:
             logging.error('[Run Finish] Some files fail to download. Please check the configure and run again.')
@@ -81,7 +80,6 @@ class M3U8Downloader:
         self._m3u8_content.dump(filename)
         return filename
 
-    @staticmethod
     def _download_m3u8(self, uri, timeout, headers):
         content = m3u8.load(uri, timeout, headers)
         if content.is_variant:
@@ -130,7 +128,7 @@ class M3U8Downloader:
         self._failed.append(uri)
 
     @staticmethod
-    def _print_stream_info(self, index, playlist):
+    def _print_stream_info(index, playlist):
         print('INDEX: ' + str(index))
         stream_info = playlist.stream_info
         if stream_info.bandwidth:
@@ -146,7 +144,7 @@ class M3U8Downloader:
         print()
 
     @staticmethod
-    def _get_http_session(self, pool_size, retry):
+    def _get_http_session(pool_size, retry):
         session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(pool_size, pool_size, retry)
         session.mount('http://', adapter)
@@ -154,11 +152,11 @@ class M3U8Downloader:
         return session
 
     @staticmethod
-    def _is_url(self, uri):
+    def _is_url(uri):
         return re.match(r'https?://', uri) is not None
 
     @staticmethod
-    def _get_filename(self, uri, dir):
+    def _get_filename(uri, dir):
         basename = urllib.parse.urlparse(uri).path.split('/')[-1]
         filename = os.path.abspath(os.path.join(dir, basename))
         return filename
