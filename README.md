@@ -5,7 +5,7 @@ Simple downloader
 ## Prerequisites
 
 * [ffmpeg](https://www.ffmpeg.org/) (concatenate)
-* pip install requirements.txt
+* pip install -r requirements.txt
 
 ## Configure
 
@@ -23,5 +23,5 @@ In `config.json`
 * `timeout`: 20
 * `headers`: {}
 * `ffmpeg_path`: ffmpeg
-* `ffmpeg_loglevel`: quiet
+* `ffmpeg_loglevel`: warning
 * `ignore_small_file_size`: 10240
