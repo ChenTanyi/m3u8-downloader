@@ -13,27 +13,7 @@ import m3u8
 import logging
 import urllib.parse
 import json
-
-
-def _load_from_uri(uri, timeout = None, headers = {}):
-    from urllib.request import urlopen, Request
-    request = Request(uri, headers = headers)
-    import ssl
-
-    # This restores the same behavior as before.
-    context = ssl._create_unverified_context()
-
-    resource = urlopen(request, timeout = timeout, context = context)
-    base_uri = m3u8._parsed_url(resource.geturl())
-    PYTHON_MAJOR_VERSION = sys.version_info
-    if PYTHON_MAJOR_VERSION < (3,):
-        content = m3u8._read_python2x(resource)
-    else:
-        content = m3u8._read_python3x(resource)
-    return m3u8.M3U8(content, base_uri = base_uri)
-
-
-m3u8._load_from_uri = _load_from_uri
+import urllib3
 
 
 class M3U8Downloader:
@@ -42,12 +22,14 @@ class M3U8Downloader:
         self._config = config
         self.set_pool(pool_size, retry)
 
+        self._ssl = self._config.get('ssl', True)
+        if self._ssl == False:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
     def set_pool(self, pool_size, retry = None):
         self._pool_size = pool_size
-        if retry:
-            self._retry = retry
         self._pool = gevent.pool.Pool(self._pool_size)
-        self._session = self._get_http_session(self._pool_size, self._retry)
+        self._session = self._get_http_session(self._pool_size, retry)
 
     def run(self, uri = None):
         self._output_dir = self._config.get('output_dir', '')
@@ -114,7 +96,13 @@ class M3U8Downloader:
         return filename
 
     def _download_m3u8(self, uri, timeout, headers):
-        content = m3u8.load(uri, timeout, headers)
+        content = m3u8.load(uri, timeout, headers, verify_ssl = self._ssl)
+        base_uri = self._config.get('base_uri')
+        if base_uri:
+            content._base_uri = base_uri
+            for index in len(content.segments):
+                content.segments[index].base_uri = base_uri
+
         if content.is_variant:
             print(
                 '\nThere are various m3u8 files. Please select one of them.\n')
@@ -146,30 +134,25 @@ class M3U8Downloader:
             logging.info('[Exists file] {0} Skip.'.format(filename))
             return
 
-        retry = self._retry
-        while retry:
-            try:
-                response = self._session.get(
-                    uri,
-                    timeout = self._timeout,
-                    headers = self._headers,
-                    verify = False)
-                if response.ok:
-                    if len(response.content) < self._config.get(
-                            'ignore_small_file_size', 10 * 1024):
-                        logging.error('[File too small] {0}'.format(uri))
-                        logging.info(
-                            '[Help] If you want to download small files, set "ignore_small_file_size" to 0'
-                        )
-                        self._failed.append(uri)
-                    else:
-                        with open(filename, 'wb') as fout:
-                            fout.write(response.content)
-                    return
-            except:
-                retry -= 1
-        logging.error('[Download Failed] {0}'.format(uri))
-        self._failed.append(uri)
+        response = self._session.get(
+            uri,
+            timeout = self._timeout,
+            headers = self._headers,
+            verify = self._ssl)
+        if response.ok:
+            if len(response.content) < self._config.get(
+                    'ignore_small_file_size', 10 * 1024):
+                logging.error('[File too small] {0}'.format(uri))
+                logging.info(
+                    '[Help] If you want to download small files, set "ignore_small_file_size" to 0'
+                )
+                self._failed.append(uri)
+            else:
+                with open(filename, 'wb') as fout:
+                    fout.write(response.content)
+        else:
+            logging.error('[Download Failed] {0}'.format(uri))
+            self._failed.append(uri)
 
     @staticmethod
     def _print_stream_info(index, playlist):
