@@ -130,29 +130,55 @@ class M3U8Downloader:
             return
 
         filename = self._get_filename(uri, self._output_dir)
-        if os.path.exists(filename):
-            logging.info('[Exists file] {0} Skip.'.format(filename))
+        headers = self._headers
+        download_continue = self._config.get('continue', True)
+
+        if download_continue:
+            self._add_range_header(headers = headers, filename = filename)
+
+        with self._session.get(
+                uri,
+                timeout = self._timeout,
+                headers = headers,
+                verify = self._ssl,
+                stream = True) as response:
+            try:
+                response.raise_for_status()
+
+                if download_continue and response.status_code != 206:
+                    logging.debug('[Debug] Server do not support Range')
+                    if os.path.exists(filename):
+                        os.remove(filename)
+
+                filesize = 0
+                if os.path.exists(filename):
+                    if not download_continue:
+                        logging.info('[Exists file] {0} Skip.'.format(filename))
+                        return
+                    else:
+                        filesize = os.stat(filename).st_size
+
+                filesize += int(response.headers.get('Content-Length', 0))
+                if filesize < self._config.get('ignore_small_file_size', 10240):
+                    logging.error(f'[File too small] {uri}, size {filesize}')
+                    logging.info(
+                        '[Help] If you want to download small files, set "ignore_small_file_size" to 0'
+                    )
+
+                for chunk in response.iter_content(chunk_size = 4096):
+                    with open(filename, 'ab') as fout:
+                        fout.write(chunk)
+            except Exception as e:
+                if response.status_code != 416:
+                    logging.error(f'[Download Failed] {uri}, error: {e}')
+                    self._failed.append(uri)
+
+    def _add_range_header(self, headers = {}, filename = None):
+        if not (filename and os.path.isfile(filename)):
             return
 
-        response = self._session.get(
-            uri,
-            timeout = self._timeout,
-            headers = self._headers,
-            verify = self._ssl)
-        if response.ok:
-            if len(response.content) < self._config.get(
-                    'ignore_small_file_size', 10 * 1024):
-                logging.error('[File too small] {0}'.format(uri))
-                logging.info(
-                    '[Help] If you want to download small files, set "ignore_small_file_size" to 0'
-                )
-                self._failed.append(uri)
-            else:
-                with open(filename, 'wb') as fout:
-                    fout.write(response.content)
-        else:
-            logging.error('[Download Failed] {0}'.format(uri))
-            self._failed.append(uri)
+        filesize = os.stat(filename).st_size
+        headers['Range'] = f'bytes={filesize}-'
 
     @staticmethod
     def _print_stream_info(index, playlist):
@@ -192,10 +218,10 @@ class M3U8Downloader:
 
 if __name__ == '__main__':
     logging.basicConfig(
-        level = logging.INFO,
+        level = logging.ERROR,
         format = '%(asctime)s %(levelname)-8s %(message)s',
         datefmt = '%Y-%m-%d %H:%M:%S')
     config_file = open('config.json', 'r')
     config = json.load(config_file)
-    x = M3U8Downloader(config, 50)
+    x = M3U8Downloader(config, 16)
     x.run()
