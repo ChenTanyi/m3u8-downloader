@@ -25,3 +25,10 @@ In `config.json`
 * `ffmpeg_path`: ffmpeg
 * `ffmpeg_loglevel`: warning
 * `ignore_small_file_size`: 10240
+* `continue`: true
+* `ssl`: true
+* `base_uri`: None
+
+## Notice
+
+* m3u8 does not support ssl now, need to add `import ssl` like https://github.com/globocom/m3u8/pull/181
