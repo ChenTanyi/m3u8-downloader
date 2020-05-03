@@ -140,13 +140,17 @@ class M3U8Downloader:
         if stream:
             self._add_range_header(headers = headers, filename = filename)
 
-        with self._session.get(
-                uri,
-                timeout = self._timeout,
-                headers = headers,
-                verify = self._ssl,
-                stream = stream) as response:
-            try:
+        try:
+            with self._session.get(
+                    uri,
+                    timeout = self._timeout,
+                    headers = headers,
+                    verify = self._ssl,
+                    stream = stream) as response:
+
+                if response.status_code == 416:
+                    return
+
                 response.raise_for_status()
 
                 if stream and response.status_code != 206:
@@ -172,10 +176,9 @@ class M3U8Downloader:
                 else:
                     with open(filename, 'wb') as fout:
                         fout.write(response.content)
-            except Exception as e:
-                if response.status_code != 416:
-                    logging.error(f'[Download Failed] {uri}, error: {e}')
-                    self._failed.append(uri)
+        except Exception as e:
+            logging.error(f'[Download Failed] {uri}, error: {e}')
+            self._failed.append(uri)
 
     def _add_range_header(self, headers = {}, filename = None):
         if not (filename and os.path.isfile(filename)):
