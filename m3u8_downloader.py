@@ -55,6 +55,7 @@ class M3U8Downloader:
         self._failed = []
         self._pool.map(self._download_ts, self._m3u8_content.segments)
 
+        input_file = self._dump_m3u8(uri)
         if self._failed:
             logging.error(
                 '[Run Finish] Some files fail to download. Please check the configure and run again.'
@@ -63,7 +64,6 @@ class M3U8Downloader:
         else:
             logging.info('[Finish Download]')
 
-        input_file = self._dump_m3u8(uri)
         if self._config.get('concat', True):
             output_file = self._config.get('output_file', None)
             if not output_file:
@@ -131,9 +131,13 @@ class M3U8Downloader:
 
         filename = self._get_filename(uri, self._output_dir)
         headers = self._headers
-        download_continue = self._config.get('continue', True)
+        stream = self._config.get('continue', False)
 
-        if download_continue:
+        if not stream and os.path.exists(filename):
+            logging.info('[Exists file] {0} Skip.'.format(filename))
+            return
+
+        if stream:
             self._add_range_header(headers = headers, filename = filename)
 
         with self._session.get(
@@ -141,22 +145,18 @@ class M3U8Downloader:
                 timeout = self._timeout,
                 headers = headers,
                 verify = self._ssl,
-                stream = True) as response:
+                stream = stream) as response:
             try:
                 response.raise_for_status()
 
-                if download_continue and response.status_code != 206:
+                if stream and response.status_code != 206:
                     logging.debug('[Debug] Server do not support Range')
                     if os.path.exists(filename):
                         os.remove(filename)
 
                 filesize = 0
                 if os.path.exists(filename):
-                    if not download_continue:
-                        logging.info('[Exists file] {0} Skip.'.format(filename))
-                        return
-                    else:
-                        filesize = os.stat(filename).st_size
+                    filesize = os.stat(filename).st_size
 
                 filesize += int(response.headers.get('Content-Length', 0))
                 if filesize < self._config.get('ignore_small_file_size', 10240):
@@ -165,9 +165,13 @@ class M3U8Downloader:
                         '[Help] If you want to download small files, set "ignore_small_file_size" to 0'
                     )
 
-                for chunk in response.iter_content(chunk_size = 4096):
-                    with open(filename, 'ab') as fout:
-                        fout.write(chunk)
+                if stream:
+                    for chunk in response.iter_content(chunk_size = 4096):
+                        with open(filename, 'ab') as fout:
+                            fout.write(chunk)
+                else:
+                    with open(filename, 'wb') as fout:
+                        fout.write(response.content)
             except Exception as e:
                 if response.status_code != 416:
                     logging.error(f'[Download Failed] {uri}, error: {e}')
