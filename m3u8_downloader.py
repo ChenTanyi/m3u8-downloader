@@ -54,6 +54,7 @@ class M3U8Downloader:
 
         self._failed = []
         self._pool.map(self._download_ts, self._m3u8_content.segments)
+        self._download_key()
 
         input_file = self._dump_m3u8(uri)
         if self._failed:
@@ -121,6 +122,20 @@ class M3U8Downloader:
                     print('Invalid Index! Try Again.')
 
         return content
+
+    def _download_key(self):
+        for key in self._m3u8_content.keys:
+            if key:
+                uri = key.absolute_uri
+                filename = self._get_filename(uri, self._output_dir)
+
+                with self._session.get(
+                    uri, timeout = self._timeout, headers = self._headers, verify = self._ssl) as response:
+                    response.raise_for_status()
+                    with open(filename, 'wb') as fout:
+                        fout.write(response.content)
+
+                key.uri = filename.replace('\\', '/') # ffmpeg error when using \\ in windows
 
     def _download_ts(self, m3u8_segments):
         uri = urllib.parse.urljoin(m3u8_segments.base_uri, m3u8_segments.uri)
