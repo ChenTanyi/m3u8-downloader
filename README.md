@@ -28,3 +28,4 @@ In `config.json`
 * `continue`: false
 * `ssl`: true
 * `base_uri`: None
+* `proxy`: None

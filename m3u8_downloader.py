@@ -26,6 +26,13 @@ class M3U8Downloader:
         if self._ssl == False:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+        self._proxy = self._config.get('proxy')
+        if self._proxy:
+            self._session.proxies = {
+                'http': self._proxy,
+                'https': self._proxy,
+            }
+
     def set_pool(self, pool_size, retry = None):
         self._pool_size = pool_size
         self._pool = gevent.pool.Pool(self._pool_size)
@@ -97,12 +104,18 @@ class M3U8Downloader:
         return filename
 
     def _download_m3u8(self, uri, timeout, headers):
-        content = m3u8.load(uri, timeout, headers, verify_ssl = self._ssl)
-        base_uri = self._config.get('base_uri')
-        if base_uri:
-            content._base_uri = base_uri
-            for index in len(content.segments):
-                content.segments[index].base_uri = base_uri
+        if self._is_url(uri):
+            resp = self._session.get(
+                uri, timeout = timeout, headers = headers, verify = self._ssl)
+            resp.raise_for_status()
+            raw_content = resp.content.decode(resp.encoding or 'utf-8')
+            base_uri = urllib.parse.urljoin(uri, '.')
+        else:
+            with open(uri) as fin:
+                raw_content = fin.read()
+                base_uri = os.path.dirname(uri)
+        base_uri = self._config.get('base_uri') or base_uri
+        content = m3u8.M3U8(raw_content, base_uri = base_uri)
 
         if content.is_variant:
             print(
