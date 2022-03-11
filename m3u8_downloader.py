@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import gevent.monkey
+
 gevent.monkey.patch_all()
 
 import os
@@ -143,12 +144,16 @@ class M3U8Downloader:
                 filename = self._get_filename(uri, self._output_dir)
 
                 with self._session.get(
-                    uri, timeout = self._timeout, headers = self._headers, verify = self._ssl) as response:
+                        uri,
+                        timeout = self._timeout,
+                        headers = self._headers,
+                        verify = self._ssl) as response:
                     response.raise_for_status()
                     with open(filename, 'wb') as fout:
                         fout.write(response.content)
 
-                key.uri = filename.replace('\\', '/') # ffmpeg error when using \\ in windows
+                key.uri = filename.replace(
+                    '\\', '/')  # ffmpeg error when using \\ in windows
 
     def _download_ts(self, m3u8_segments):
         uri = urllib.parse.urljoin(m3u8_segments.base_uri, m3u8_segments.uri)
