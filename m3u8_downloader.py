@@ -11,7 +11,9 @@ import gevent
 import gevent.pool
 import requests
 import m3u8
+import shlex
 import logging
+import argparse
 import urllib.parse
 import json
 import urllib3
@@ -34,18 +36,26 @@ class M3U8Downloader:
                 'https': self._proxy,
             }
 
+        self._output_dir = self._config.get('output_dir', '')
+        self._timeout = float(self._config.get('timeout', 20))
+        self._headers = {k.lower().strip(): v.strip() for k, v in self._config.get('headers', {}).items()}
+        self._uri = self._config.get('uri', None)
+
+        curlFile = self._config.get('fromCurl')
+        if curlFile and os.path.isfile(curlFile):
+            with open(curlFile, 'r') as fin:
+                command = fin.read()
+                if command:
+                    self._parse_curl(command)
+
     def set_pool(self, pool_size, retry = None):
         self._pool_size = pool_size
         self._pool = gevent.pool.Pool(self._pool_size)
         self._session = self._get_http_session(self._pool_size, retry)
 
     def run(self, uri = None):
-        self._output_dir = self._config.get('output_dir', '')
-        self._timeout = self._config.get('timeout', 20)
-        self._headers = self._config.get('headers', {})
-
         if not uri:
-            uri = self._config.get('uri', None)
+            uri = self._uri
             if not uri:
                 raise ValueError('Uri should not be empty.')
 
@@ -258,6 +268,33 @@ class M3U8Downloader:
         basename = urllib.parse.urlparse(uri).path.split('/')[-1]
         filename = os.path.abspath(os.path.join(dir, basename))
         return filename
+
+    _curl_parser = argparse.ArgumentParser()
+    _curl_parser.add_argument('curl')
+    _curl_parser.add_argument('url')
+    _curl_parser.add_argument('-X', '--request', dest = 'method')
+    _curl_parser.add_argument('-H', '--header', action = 'append')
+    _curl_parser.add_argument('-d', '--data', '--data-ascii', '--data-binary', '--data-raw', '--data-urlencode', dest = 'body')
+    _curl_parser.add_argument('--compressed', action='store_true')
+
+    def _parse_curl(self, command):
+        args = shlex.split(command.replace("\\\n", ""))
+        parsed_args, unknown = self._curl_parser.parse_known_args(args)
+        if unknown:
+            logging.warning(f'[Unknown Curl Args] {unknown}')
+
+        if parsed_args.url:
+            self._uri = parsed_args.url
+
+        if parsed_args.header:
+            for header in parsed_args.header:
+                if header.startswith(':'):
+                    index = header[1:].find(':') + 1
+                else:
+                    index = header.find(':')
+                key = header[:index].lower().strip()
+                value = header[index + 1:].strip()
+                self._headers[key] = value
 
 
 if __name__ == '__main__':

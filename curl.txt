@@ -1,0 +1,1 @@
+curl http://qthttp.apple.com.edgesuite.net/1010qwoeiuryfg/sl.m3u8
