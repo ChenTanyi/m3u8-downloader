@@ -124,8 +124,12 @@ class M3U8Downloader:
             for index, playlist in enumerate(content.playlists):
                 self._print_stream_info(index, playlist)
 
+            while True:
                 try:
-                    chosen_idx = int(input('INDEX > '))
+                    if len(content.playlists) == 1:
+                        chosen_idx = 0
+                    else:
+                        chosen_idx = int(input('INDEX > '))
                     chosen_uri = content.playlists[chosen_idx].uri
                     if not self._is_url(chosen_uri):
                         chosen_uri = urllib.parse.urljoin(
