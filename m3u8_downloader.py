@@ -83,6 +83,7 @@ class M3U8Downloader:
         else:
             logging.info('[Finish Download]')
 
+        self._remove_png_header()
         if self._config.get('concat', True):
             output_file = self._config.get('output_file', None)
             if not output_file:
@@ -226,6 +227,16 @@ class M3U8Downloader:
         except Exception as e:
             logging.error(f'[Download Failed] {uri}, error: {e}')
             self._failed.append(uri)
+
+    def _remove_png_header(self):
+        for segment in self._m3u8_content.segments:
+            filename = segment.uri
+            with open(filename, 'rb') as fin:
+                content = fin.read()
+            # http://www.libpng.org/pub/png/spec/1.2/PNG-Rationale.html#R.PNG-file-signature
+            if content.startswith(b'\x89\x50\x4e\x47\x0d\x0a\x1a\x0a'):
+                with open(filename, 'wb') as fout:
+                    fout.write(content[8:])
 
     def _add_range_header(self, headers = {}, filename = None):
         if not (filename and os.path.isfile(filename)):
