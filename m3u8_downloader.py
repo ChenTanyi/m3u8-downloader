@@ -75,6 +75,7 @@ class M3U8Downloader:
         self._download_key()
 
         input_file = self._dump_m3u8(uri)
+        self._remove_png_header()
         if self._failed:
             logging.error(
                 '[Run Finish] Some files fail to download. Please check the configure and run again.'
@@ -226,6 +227,16 @@ class M3U8Downloader:
         except Exception as e:
             logging.error(f'[Download Failed] {uri}, error: {e}')
             self._failed.append(uri)
+
+    def _remove_png_header(self):
+        for segment in self._m3u8_content.segments:
+            filename = segment.uri
+            with open(filename, 'rb') as fin:
+                content = fin.read()
+            # http://www.libpng.org/pub/png/spec/1.2/PNG-Rationale.html#R.PNG-file-signature
+            if content.startswith(b'\x89\x50\x4e\x47\x0d\x0a\x1a\x0a'):
+                with open(filename, 'wb') as fout:
+                    fout.write(content[8:])
 
     def _add_range_header(self, headers = {}, filename = None):
         if not (filename and os.path.isfile(filename)):
