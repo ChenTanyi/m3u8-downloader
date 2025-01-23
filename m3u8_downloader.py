@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import gevent.monkey
 
@@ -72,7 +72,7 @@ class M3U8Downloader:
 
         self._failed = []
         self._pool.map(self._download_ts, self._m3u8_content.segments)
-        self._download_key()
+        self._pool.map(self._download_extra, [*self._m3u8_content.keys, *self._m3u8_content.segment_map])
 
         input_file = self._dump_m3u8(uri)
         if self._failed:
@@ -110,6 +110,14 @@ class M3U8Downloader:
         for index, segment in enumerate(self._m3u8_content.segments):
             self._m3u8_content.segments[index].uri = self._get_filename(
                 segment.uri, self._output_dir)
+            if self._m3u8_content.segments[index].init_section:
+                self._m3u8_content.segments[index].init_section.uri = self._get_filename(
+                    segment.init_section.uri, self._output_dir).replace('\\', '/')
+
+        for key in self._m3u8_content.keys:
+            if key and key.absolute_uri:
+                key.uri = self._get_filename(key.absolute_uri, self._output_dir
+                    ).replace('\\', '/')  # ffmpeg error when using \\ in windows
 
         filename = self._get_filename(uri, self._output_dir)
         self._m3u8_content.dump(filename)
@@ -152,23 +160,19 @@ class M3U8Downloader:
 
         return content
 
-    def _download_key(self):
-        for key in self._m3u8_content.keys:
-            if key:
-                uri = key.absolute_uri
-                filename = self._get_filename(uri, self._output_dir)
+    def _download_extra(self, item):
+        if item and item.absolute_uri:
+            uri = item.absolute_uri
+            filename = self._get_filename(uri, self._output_dir)
 
-                with self._session.get(
-                        uri,
-                        timeout = self._timeout,
-                        headers = self._headers,
-                        verify = self._ssl) as response:
-                    response.raise_for_status()
-                    with open(filename, 'wb') as fout:
-                        fout.write(response.content)
-
-                key.uri = filename.replace(
-                    '\\', '/')  # ffmpeg error when using \\ in windows
+            with self._session.get(
+                    uri,
+                    timeout = self._timeout,
+                    headers = self._headers,
+                    verify = self._ssl) as response:
+                response.raise_for_status()
+                with open(filename, 'wb') as fout:
+                    fout.write(response.content)
 
     def _download_ts(self, m3u8_segments):
         uri = urllib.parse.urljoin(m3u8_segments.base_uri, m3u8_segments.uri)
