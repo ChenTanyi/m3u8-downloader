@@ -101,7 +101,7 @@ class M3U8Downloader:
     def concat_with_ffmpeg(self, input_file, output_file):
         ffmpeg_path = self._config.get('ffmpeg_path', 'ffmpeg')
         ffmpeg_loglevel = self._config.get('ffmpeg_loglevel', 'warning')
-        ffmpeg_cmd = '{0} -allowed_extensions ALL -y -loglevel {1} -i {2} -c copy {3}'.format(
+        ffmpeg_cmd = '{0} -allowed_extensions ALL -y -loglevel {1} -f hls -i {2} -c copy {3}'.format(
             ffmpeg_path, ffmpeg_loglevel, input_file, output_file)
         logging.info('[concat cmd] {0}'.format(ffmpeg_cmd))
         os.system(ffmpeg_cmd)
