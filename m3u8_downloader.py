@@ -158,6 +158,48 @@ class M3U8Downloader:
                 except (ValueError, IndexError):
                     print('Invalid Index! Try Again.')
 
+        video_starts = [0]
+        video_lengths = [0]
+        for i, segment in enumerate(content.segments):
+            if segment.discontinuity:
+                video_starts.append(i)
+                video_lengths.append(0)
+            else:
+                video_lengths[-1] += segment.duration
+
+        if len(video_starts) > 1:
+            print(
+                f'\nThere are {len(video_starts)} different videos.'
+                ' Please select what you want (separated by space).\n')
+            for index, length in enumerate(video_lengths):
+                print(f'INDEX: {index}, length: {length}s\n')
+
+            while True:
+                try:
+                    chosen_idxs = input('INDEXES > ')
+                    segments = []
+                    for chosen_idx in chosen_idxs.split():
+                        chosen_idx = int(chosen_idx)
+                        if chosen_idx + 1 < len(video_starts):
+                            segments += content.segments[video_starts[chosen_idx]:video_starts[chosen_idx+1]]
+                        else:
+                            segments += content.segments[video_starts[chosen_idx]:]
+                    content.segments = m3u8.SegmentList(segments)
+                    break
+                except (ValueError, IndexError):
+                    print('Invalid Index! Try Again.')
+
+        key_uri = None
+        content.keys = []
+        for segment in content.segments:
+            if segment.key:
+                if key_uri is None:
+                    key_uri = segment.key.absolute_uri
+                    content.keys.append(segment.key)
+                elif key_uri != segment.key.absolute_uri:
+                    logging.error('[Exit] Undefined behavior with 2 different keys, please submit issue.')
+                    sys.exit(1)
+
         return content
 
     def _download_extra(self, item):
