@@ -309,7 +309,8 @@ class M3U8Downloader:
                     index = header.find(':')
                 key = header[:index].lower().strip()
                 value = header[index + 1:].strip()
-                self._headers[key] = value
+                if not key.startswith('if-'):
+                    self._headers[key] = value
 
 
 if __name__ == '__main__':
